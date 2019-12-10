@@ -4,7 +4,7 @@
 extern "C" {
 #endif
 //自定义Present的附加操作
-void CustomPresent(LPDIRECT3DDEVICE9);
+void CustomPresent(LPDIRECT3DDEVICE9,HRESULT);
 DWORD GetDLLPath(LPTSTR path, DWORD max_length);
 #ifdef __cplusplus
 }

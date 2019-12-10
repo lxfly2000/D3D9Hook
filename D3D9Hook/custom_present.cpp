@@ -12,10 +12,10 @@
 #define C(x) x
 #endif
 
+ID3DXFont* pFont = nullptr;//经测试D3DXFont在此处不能创建多次
 class D3DXCustomPresent
 {
 private:
-	ID3DXFont* pFont;
 	unsigned t1, t2, fcount;
 	std::wstring display_text;
 	int current_fps;
@@ -29,7 +29,7 @@ private:
 	int formatFlag;
 	D3DCOLOR color_text, color_shadow;
 public:
-	D3DXCustomPresent():pFont(nullptr),t1(0),t2(0),fcount(0),formatFlag(0)
+	D3DXCustomPresent():t1(0),t2(0),fcount(0),formatFlag(0)
 	{
 	}
 	D3DXCustomPresent(D3DXCustomPresent &&other)
@@ -45,6 +45,7 @@ public:
 	}
 	BOOL Init(LPDIRECT3DDEVICE9 pDev)
 	{
+		Uninit();
 		TCHAR szConfPath[MAX_PATH];
 		GetDLLPath(szConfPath, ARRAYSIZE(szConfPath));
 		lstrcpy(wcsrchr(szConfPath, '.'), TEXT(".ini"));
@@ -84,8 +85,8 @@ public:
 		df.Quality = 0;
 		df.PitchAndFamily = 0;
 		lstrcpy(df.FaceName, font_name);
-
-		C(D3DXCreateFontIndirect(pDev, &df, &pFont));
+		if (!pFont)
+			C(D3DXCreateFontIndirect(pDev, &df, &pFont));
 		IDirect3D9* pD3D9;
 		C(pDev->GetDirect3D(&pD3D9));
 		D3DDISPLAYMODE dm;
@@ -159,8 +160,11 @@ public:
 	}
 	void Uninit()
 	{
-		if(pFont)
+		if (pFont)
+		{
 			pFont->Release();
+			pFont = nullptr;
+		}
 	}
 	void Draw()
 	{
@@ -195,12 +199,18 @@ public:
 
 static std::map<LPDIRECT3DDEVICE9, D3DXCustomPresent> cp;
 
-void CustomPresent(LPDIRECT3DDEVICE9 p)
+void CustomPresent(LPDIRECT3DDEVICE9 p,HRESULT hrLast)
 {
 	if (cp.find(p) == cp.end())
 	{
-		cp.insert(std::make_pair(p, D3DXCustomPresent()));
-		cp[p].Init(p);
+		if (hrLast == D3D_OK && p->TestCooperativeLevel() == D3D_OK)
+		{
+			cp.insert(std::make_pair(p, D3DXCustomPresent()));
+			cp[p].Init(p);
+		}
 	}
-	cp[p].Draw();
+	else if (hrLast != D3D_OK || p->TestCooperativeLevel() != D3D_OK)
+		cp.erase(p);
+	else
+		cp[p].Draw();
 }

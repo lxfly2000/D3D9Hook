@@ -14,12 +14,15 @@ DWORD GetDLLPath(LPTSTR path, DWORD max_length)
 	return GetModuleFileName(hDllModule, path, max_length);
 }
 
+HRESULT hrLastPresent = S_OK;
+
 //Present是STDCALL调用方式，只需把THIS指针放在第一项就可按非成员函数调用
 HRESULT __stdcall HookedIDirect3DDevice9_Present(LPDIRECT3DDEVICE9 pDevice, LPCRECT pSrc, LPCRECT pDest, HWND hwnd, const RGNDATA* pRgn)
 {
-	CustomPresent(pDevice);
+	CustomPresent(pDevice,hrLastPresent);
 	//此时函数被拦截，只能通过指针调用，否则要先把HOOK关闭，调用p->Present，再开启HOOK
-	return pfOriginalPresent(pDevice, pSrc, pDest, hwnd, pRgn);
+	hrLastPresent = pfOriginalPresent(pDevice, pSrc, pDest, hwnd, pRgn);
+	return hrLastPresent;
 }
 
 PFIDirect3DDevice9_Present GetPresentVAddr()
@@ -53,7 +56,7 @@ PFIDirect3DDevice9_Present GetPresentVAddr()
 		vp = D3DCREATE_SOFTWARE_VERTEXPROCESSING;
 	if (FAILED(pD3D9->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, GetDesktopWindow(), vp, &d3dpp, &pDevice)))
 		return nullptr;
-	INT_PTR p = reinterpret_cast<INT_PTR*>(reinterpret_cast<INT_PTR*>(pDevice)[0])[3];//TODO
+	INT_PTR p = reinterpret_cast<INT_PTR*>(reinterpret_cast<INT_PTR*>(pDevice)[0])[17];//通过类定义查看函数所在位置
 	pDevice->Release();
 	pD3D9->Release();
 	return reinterpret_cast<PFIDirect3DDevice9_Present>(p);
