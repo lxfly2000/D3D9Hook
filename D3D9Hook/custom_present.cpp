@@ -87,15 +87,13 @@ public:
 		lstrcpy(df.FaceName, font_name);
 		if (!pFont)
 			C(D3DXCreateFontIndirect(pDev, &df, &pFont));
-		IDirect3D9* pD3D9;
-		C(pDev->GetDirect3D(&pD3D9));
-		D3DDISPLAYMODE dm;
-		C(pD3D9->GetAdapterDisplayMode(D3DADAPTER_DEFAULT, &dm));
+		D3DVIEWPORT9 vp;
+		C(pDev->GetViewport(&vp));
 		if (lstrcmpi(text_align, TEXT("right")) == 0)
 		{
 			formatFlag |= DT_RIGHT;
 			rText.left = 0;
-			rText.right = (LONG)(F(text_x)*dm.Width);
+			rText.right = (LONG)(F(text_x)*vp.Width);
 		}
 		else if (lstrcmpi(text_align, TEXT("center")) == 0)
 		{
@@ -103,25 +101,25 @@ public:
 			if (F(text_x) > 0.5f)
 			{
 				rText.left = 0;
-				rText.right = (LONG)(2.0f*dm.Width*F(text_x));
+				rText.right = (LONG)(2.0f*vp.Width*F(text_x));
 			}
 			else
 			{
-				rText.left = (LONG)(2.0f*dm.Width*F(text_x) - dm.Width);
-				rText.right = (LONG)dm.Width;
+				rText.left = (LONG)(2.0f*vp.Width*F(text_x) - vp.Width);
+				rText.right = (LONG)vp.Width;
 			}
 		}
 		else
 		{
 			formatFlag |= DT_LEFT;
-			rText.left = (LONG)(F(text_x)*dm.Width);
-			rText.right = (LONG)dm.Width;
+			rText.left = (LONG)(F(text_x)*vp.Width);
+			rText.right = (LONG)vp.Width;
 		}
 		if (lstrcmpi(text_valign, TEXT("bottom")) == 0)
 		{
 			formatFlag |= DT_BOTTOM;
 			rText.top = 0;
-			rText.bottom = (LONG)(F(text_y)*dm.Height);
+			rText.bottom = (LONG)(F(text_y)*vp.Height);
 		}
 		else if (lstrcmpi(text_valign, TEXT("center")) == 0)
 		{
@@ -129,20 +127,24 @@ public:
 			if (F(text_y) > 0.5f)
 			{
 				rText.top = 0;
-				rText.bottom = (LONG)(2.0f*dm.Height*F(text_y));
+				rText.bottom = (LONG)(2.0f*vp.Height*F(text_y));
 			}
 			else
 			{
-				rText.top = (LONG)(2.0f*dm.Height*F(text_y) - dm.Height);
-				rText.bottom = (LONG)dm.Height;
+				rText.top = (LONG)(2.0f*vp.Height*F(text_y) - vp.Height);
+				rText.bottom = (LONG)vp.Height;
 			}
 		}
 		else
 		{
 			formatFlag |= DT_TOP;
-			rText.top = (LONG)(F(text_y)*dm.Height);
-			rText.bottom = (LONG)dm.Height;
+			rText.top = (LONG)(F(text_y)*vp.Height);
+			rText.bottom = (LONG)vp.Height;
 		}
+		rText.left += (LONG)vp.X;
+		rText.top += (LONG)vp.Y;
+		rText.right += (LONG)vp.X;
+		rText.bottom += (LONG)vp.Y;
 		rTextShadow.left = rText.left + (LONG)F(font_shadow_distance);
 		rTextShadow.top = rText.top + (LONG)F(font_shadow_distance);
 		rTextShadow.right = rText.right + (LONG)F(font_shadow_distance);
