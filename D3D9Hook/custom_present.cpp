@@ -3,6 +3,7 @@
 #include<map>
 #include<string>
 #include<ctime>
+#include"keyol.h"
 
 #pragma comment(lib,"d3dx9.lib")
 
@@ -29,6 +30,7 @@ private:
 	int formatFlag;
 	D3DCOLOR color_text, color_shadow;
 	D3DVIEWPORT9 viewport;
+	static WNDPROC oldWndProc;
 public:
 	D3DXCustomPresent():t1(0),t2(0),fcount(0),formatFlag(0)
 	{
@@ -43,6 +45,10 @@ public:
 	~D3DXCustomPresent()
 	{
 		Uninit();
+	}
+	static LRESULT CALLBACK ExtraProcess(HWND h, UINT m, WPARAM w, LPARAM l)
+	{
+		return KeyOverlayExtraProcess(oldWndProc, h, m, w, l);
 	}
 	BOOL Init(LPDIRECT3DDEVICE9 pDev)
 	{
@@ -160,12 +166,24 @@ public:
 			(DWORD)(255.0f*F(font_green)),
 			(DWORD)(255.0f*F(font_blue)));
 
+		D3DDEVICE_CREATION_PARAMETERS dcp;
+		C(pDev->GetCreationParameters(&dcp));
+		if (!KeyOverlayInit(dcp.hFocusWindow, pDev))
+			return FALSE;
+		oldWndProc = (WNDPROC)GetWindowLongPtr(dcp.hFocusWindow, GWLP_WNDPROC);
+		SetWindowLongPtr(dcp.hFocusWindow, GWLP_WNDPROC, (LONG_PTR)ExtraProcess);
 		return TRUE;
 	}
 	void Uninit()
 	{
 		if (pFont)
 		{
+			LPDIRECT3DDEVICE9 pDev;
+			C(pFont->GetDevice(&pDev));
+			D3DDEVICE_CREATION_PARAMETERS dcp;
+			C(pDev->GetCreationParameters(&dcp));
+			SetWindowLongPtr(dcp.hFocusWindow, GWLP_WNDPROC, (LONG_PTR)oldWndProc);
+			KeyOverlayUninit();
 			pFont->Release();
 			pFont = nullptr;
 		}
@@ -204,10 +222,13 @@ public:
 			if (pos != std::wstring::npos)
 				display_text.replace(pos, 8, height_text);
 		}
+		KeyOverlayDraw();
 		pFont->DrawText(NULL, display_text.c_str(), (int)display_text.length(), &rTextShadow, formatFlag, color_shadow);
 		pFont->DrawText(NULL, display_text.c_str(), (int)display_text.length(), &rText, formatFlag, color_text);
 	}
 };
+
+WNDPROC D3DXCustomPresent::oldWndProc = nullptr;
 
 static std::map<LPDIRECT3DDEVICE9, D3DXCustomPresent> cp;
 
