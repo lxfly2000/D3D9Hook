@@ -84,7 +84,7 @@ public:
 
 		D3DXFONT_DESC df;
 		ZeroMemory(&df, sizeof(D3DXFONT_DESC));
-		df.Height = -MulDiv(_wtoi(font_size), GetDeviceCaps(GetDC(NULL), LOGPIXELSY), 72);//此处不能直接用字体大小，需要将字体大小换算成GDI的逻辑单元大小
+		df.Height = -MulDiv(_wtoi(font_size), USER_DEFAULT_SCREEN_DPI, 72);//此处不能直接用字体大小，需要将字体大小换算成GDI的逻辑单元大小
 		df.Width = 0;
 		df.Weight = font_weight;
 		df.MipLevels = D3DX_DEFAULT;
