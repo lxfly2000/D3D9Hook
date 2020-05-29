@@ -174,7 +174,9 @@ BOOL Test100OJReadGameDataInit(HWND hwnd,LPDIRECT3DDEVICE9 pDevice)
 	for (int i = 0; i < ARRAYSIZE(ini.characters); i++)
 	{
 		if (D3D_OK != D3DXCreateTextureFromFileEx(g_pDevice, ini.characters[i], 0, 0, 0, 0,
-			D3DFMT_UNKNOWN, D3DPOOL_DEFAULT, D3DX_DEFAULT, D3DX_DEFAULT, 0, imginfoCharacters + i, NULL, texCharacters + i))
+			D3DFMT_UNKNOWN, D3DPOOL_DEFAULT, D3DX_DEFAULT, D3DX_DEFAULT, 0, imginfoCharacters + i, NULL, texCharacters + i)&&
+			D3D_OK != D3DXCreateTextureFromFileEx(g_pDevice, ini.GetDllRelativePath(ini.characters[i]).c_str(), 0, 0, 0, 0,
+				D3DFMT_UNKNOWN, D3DPOOL_DEFAULT, D3DX_DEFAULT, D3DX_DEFAULT, 0, imginfoCharacters + i, NULL, texCharacters + i))
 		{
 			texCharacters[i] = nullptr;
 		}
@@ -182,13 +184,17 @@ BOOL Test100OJReadGameDataInit(HWND hwnd,LPDIRECT3DDEVICE9 pDevice)
 	for (int i = 0; i < ARRAYSIZE(ini.dices); i++)
 	{
 		if (D3D_OK != D3DXCreateTextureFromFileEx(g_pDevice, ini.dices[i], 0, 0, 0, 0,
-			D3DFMT_UNKNOWN, D3DPOOL_DEFAULT, D3DX_DEFAULT, D3DX_DEFAULT, 0, imginfoDices + i, NULL, texDices + i))
+			D3DFMT_UNKNOWN, D3DPOOL_DEFAULT, D3DX_DEFAULT, D3DX_DEFAULT, 0, imginfoDices + i, NULL, texDices + i)&&
+			D3D_OK != D3DXCreateTextureFromFileEx(g_pDevice, ini.GetDllRelativePath(ini.dices[i]).c_str(), 0, 0, 0, 0,
+				D3DFMT_UNKNOWN, D3DPOOL_DEFAULT, D3DX_DEFAULT, D3DX_DEFAULT, 0, imginfoDices + i, NULL, texDices + i))
 		{
 			texDices[i] = nullptr;
 		}
 	}
 	if (D3D_OK != D3DXCreateTextureFromFileEx(g_pDevice, ini.boxImage, 0, 0, 0, 0,
-		D3DFMT_UNKNOWN, D3DPOOL_DEFAULT, D3DX_DEFAULT, D3DX_DEFAULT, 0, &imginfoBox, NULL, &texBox))
+		D3DFMT_UNKNOWN, D3DPOOL_DEFAULT, D3DX_DEFAULT, D3DX_DEFAULT, 0, &imginfoBox, NULL, &texBox)&&
+		D3D_OK != D3DXCreateTextureFromFileEx(g_pDevice, ini.GetDllRelativePath(ini.boxImage).c_str(), 0, 0, 0, 0,
+			D3DFMT_UNKNOWN, D3DPOOL_DEFAULT, D3DX_DEFAULT, D3DX_DEFAULT, 0, &imginfoBox, NULL, &texBox))
 	{
 		texBox = nullptr;
 	}
