@@ -1,5 +1,6 @@
 #pragma once
 #include<Windows.h>
-void Test100OJReadGameDataInit();
+#include<d3d9.h>
+BOOL Test100OJReadGameDataInit(HWND,LPDIRECT3DDEVICE9);
 void Test100OJReadGameDataUninit();
-int Test100OJGetGameDataOutput(LPWSTR str, int length);
+void Test100OJDraw();

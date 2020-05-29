@@ -21,7 +21,7 @@ private:
 	unsigned t1, t2, fcount;
 	std::wstring display_text;
 	int current_fps;
-	TCHAR time_text[32], fps_text[32], width_text[32], height_text[32], gamedata_text[120];
+	TCHAR time_text[32], fps_text[32], width_text[32], height_text[32];
 
 	TCHAR font_name[256], font_size[16],text_x[16],text_y[16],text_align[16],text_valign[16],display_text_fmt[256],fps_fmt[32],time_fmt[32], width_fmt[32], height_fmt[32];
 	TCHAR font_red[16], font_green[16], font_blue[16], font_alpha[16];
@@ -81,7 +81,7 @@ public:
 		GetInitConfStr(fps_fmt, TEXT("FPS:%3d"));
 		GetInitConfStr(width_fmt, TEXT("%d"));
 		GetInitConfStr(height_fmt, TEXT("%d"));
-		GetInitConfStr(display_text_fmt, TEXT("{fps} {gamedata}"));
+		GetInitConfStr(display_text_fmt, TEXT("{fps}"));
 
 		D3DXFONT_DESC df;
 		ZeroMemory(&df, sizeof(D3DXFONT_DESC));
@@ -171,7 +171,8 @@ public:
 		C(pDev->GetCreationParameters(&dcp));
 		if (!KeyOverlayInit(dcp.hFocusWindow, pDev))
 			return FALSE;
-		Test100OJReadGameDataInit();
+		if (!Test100OJReadGameDataInit(dcp.hFocusWindow, pDev))
+			return FALSE;
 		oldWndProc = (WNDPROC)GetWindowLongPtr(dcp.hFocusWindow, GWLP_WNDPROC);
 		SetWindowLongPtr(dcp.hFocusWindow, GWLP_WNDPROC, (LONG_PTR)ExtraProcess);
 		return TRUE;
@@ -208,7 +209,6 @@ public:
 			wcsftime(time_text, ARRAYSIZE(time_text), time_fmt, &tm1);
 			wsprintf(width_text, width_fmt, viewport.Width);
 			wsprintf(height_text, height_fmt, viewport.Height);
-			Test100OJGetGameDataOutput(gamedata_text, ARRAYSIZE(gamedata_text));
 			display_text = display_text_fmt;
 			size_t pos = display_text.find(TEXT("\\n"));
 			if (pos != std::wstring::npos)
@@ -225,10 +225,8 @@ public:
 			pos = display_text.find(TEXT("{height}"));
 			if (pos != std::wstring::npos)
 				display_text.replace(pos, 8, height_text);
-			pos = display_text.find(TEXT("{gamedata}"));
-			if (pos != std::wstring::npos)
-				display_text.replace(pos, 10, gamedata_text);
 		}
+		Test100OJDraw();
 		KeyOverlayDraw();
 		pFont->DrawText(NULL, display_text.c_str(), (int)display_text.length(), &rTextShadow, formatFlag, color_shadow);
 		pFont->DrawText(NULL, display_text.c_str(), (int)display_text.length(), &rText, formatFlag, color_text);

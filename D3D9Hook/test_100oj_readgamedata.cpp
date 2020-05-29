@@ -1,7 +1,37 @@
 #include "test_100oj_readgamedata.h"
 #include<TlHelp32.h>
+#include<d3dx9.h>
 
 //由于是同一进程，可以不必使用Query***及ReadProcessMemory函数获取数据，直接用句柄及指针访问即可（可能？）
+
+//点击图片可切换显示模式：详细/仅我的数值/不显示
+//可移动图片位置
+
+//INI:
+//6个图片，图片中心XY在窗口的百分比位置，图片随机分组
+//6个骰子图片
+//连接点大小，连接文本框XY百分比位置，连接图片XY百分比位置，文本框粗细，圆角半径，边界颜色，填充颜色，文本字体，文本字重，文本颜色，文本字号
+//显示模式
+#define GetInitConfStr(key,def) GetPrivateProfileString(TEXT("100oj"),TEXT(_STRINGIZE(key)),def,key,ARRAYSIZE(key),szConfPath)
+#define GetInitConfInt(key,def) key=GetPrivateProfileInt(TEXT("100oj"),TEXT(_STRINGIZE(key)),def,szConfPath)
+#define F(_i_str) (float)_wtof(_i_str)
+
+class Ini100OJ
+{
+public:
+	void LoadSettings()
+	{
+		//TODO
+	}
+	void SetNewXY(float x, float y)//0.0-1.0
+	{
+		//TODO
+	}
+	void SetMode(int mode)
+	{
+		//TODO
+	}
+};
 
 DWORD QueryFirstPIDOfProcessName(LPCWSTR pn)
 {
@@ -28,6 +58,9 @@ LPBYTE QueryBaseAddrOfPIDModule(DWORD pid, LPCWSTR mn)
 	return 0;
 }
 
+HWND g_hwnd;
+LPDIRECT3DDEVICE9 g_pDevice;
+
 DWORD pidOrange;
 HANDLE hOrange;
 LPBYTE hm;
@@ -36,8 +69,10 @@ LPVOID ppMyPlayer;
 LPBYTE pMyPlayer;
 int lastDice, myPlayer,curPlayer,curChapter,mapNum,lastDiceIndex;
 
-void Test100OJReadGameDataInit()
+BOOL Test100OJReadGameDataInit(HWND hwnd,LPDIRECT3DDEVICE9 pDevice)
 {
+	g_hwnd = hwnd;
+	g_pDevice = pDevice;
 	pidOrange = QueryFirstPIDOfProcessName(TEXT("100orange.exe"));
 	hOrange = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pidOrange);
 	if (hOrange)
@@ -49,7 +84,9 @@ void Test100OJReadGameDataInit()
 		pCurChapter = reinterpret_cast<int*>(hm + 0x57EC60);
 		pMapNum = reinterpret_cast<int*>(hm + 0x550E60);
 		pLastDiceIndex = reinterpret_cast<int*>(hm + 0x57ED50);
+		return TRUE;
 	}
+	return FALSE;
 }
 
 void Test100OJReadGameDataUninit()
@@ -57,45 +94,26 @@ void Test100OJReadGameDataUninit()
 	CloseHandle(hOrange);
 }
 
-int Test100OJGetGameDataOutput(LPWSTR str, int length)
+void UpdateData()
+{
+	//TODO:已查到这是一个数组，但不知如何判断数组长度，且该数值不能表示战斗中的骰子点数，需要另外查找
+	lastDice = *(int*)pLastDice;// ReadProcessMemory(hOrange, pLastDice, &lastDice, sizeof(lastDice), NULL);
+
+	lastDiceIndex = *(int*)pLastDiceIndex;// ReadProcessMemory(hOrange, pLastDiceIndex, &lastDiceIndex, sizeof(lastDiceIndex), NULL);
+
+	pMyPlayer = *(LPBYTE*)ppMyPlayer + 0xF8;// ReadProcessMemory(hOrange, ppMyPlayer, &pMyPlayer, sizeof(pMyPlayer), NULL);
+	myPlayer = *(int*)pMyPlayer;// ReadProcessMemory(hOrange, (LPVOID)pMyPlayer, &myPlayer, sizeof(myPlayer), NULL);
+
+	curPlayer = *(int*)pCurPlayer;// ReadProcessMemory(hOrange, pCurPlayer, &curPlayer, sizeof(curPlayer), NULL);
+
+	curChapter = *(int*)pCurChapter;// ReadProcessMemory(hOrange, pCurChapter, &curChapter, sizeof(curChapter), NULL);
+
+	mapNum = *(int*)pMapNum;// ReadProcessMemory(hOrange, pMapNum, &mapNum, sizeof(mapNum), NULL);
+}
+
+void Test100OJDraw()
 {
 	if (!hOrange)
-		return str[0] = 0;
+		return;
 
-	int offset = wsprintf(str, TEXT("LastDice:"));
-	//TODO:已查到这是一个数组，但不知如何判断数组长度，且该数值不能表示战斗中的骰子点数，需要另外查找
-	if (!ReadProcessMemory(hOrange, pLastDice, &lastDice, sizeof(lastDice), NULL))
-		offset += wsprintf(str + offset, TEXT("[%d]"), GetLastError());
-	offset += wsprintf(str + offset, TEXT("%d"), lastDice);
-
-	if (!ReadProcessMemory(hOrange, pLastDiceIndex, &lastDiceIndex, sizeof(lastDiceIndex), NULL))
-		offset += wsprintf(str + offset, TEXT("[%d]"), GetLastError());
-	offset += wsprintf(str + offset, TEXT("(%d)"), lastDiceIndex);
-
-	offset += wsprintf(str + offset, TEXT(" Me:P"));
-	if (!ReadProcessMemory(hOrange, ppMyPlayer, &pMyPlayer, sizeof(pMyPlayer), NULL))
-		offset += wsprintf(str + offset, TEXT("[%d]"), GetLastError());
-	pMyPlayer += 0xF8;
-	if (!ReadProcessMemory(hOrange, (LPVOID)pMyPlayer, &myPlayer, sizeof(myPlayer), NULL))
-		offset += wsprintf(str + offset, TEXT("[%d]"), GetLastError());
-	offset += wsprintf(str + offset, TEXT("%d"), myPlayer + 1);
-
-	offset += wsprintf(str + offset, TEXT(" Turn:P"));
-	if (!ReadProcessMemory(hOrange, pCurPlayer, &curPlayer, sizeof(curPlayer), NULL))
-		offset += wsprintf(str + offset, TEXT("[%d]"), GetLastError());
-	offset += wsprintf(str + offset, TEXT("%d"), curPlayer + 1);
-
-	offset += wsprintf(str + offset, TEXT(" Chpt:"));
-	if (!ReadProcessMemory(hOrange, pCurChapter, &curChapter, sizeof(curChapter), NULL))
-		offset += wsprintf(str + offset, TEXT("[%d]"), GetLastError());
-	offset += wsprintf(str + offset, TEXT("%d"), curChapter);
-
-	offset += wsprintf(str + offset, TEXT(" Map:"));
-	if (!ReadProcessMemory(hOrange, pMapNum, &mapNum, sizeof(mapNum), NULL))
-		offset += wsprintf(str + offset, TEXT("[%d]"), GetLastError());
-	offset += wsprintf(str + offset, TEXT("%d"), mapNum);
-
-	if (offset >= length)
-		return str[0] = 0;
-	return offset;
 }
