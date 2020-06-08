@@ -171,10 +171,10 @@ LPDIRECT3DDEVICE9 g_pDevice;
 DWORD pidOrange;
 HANDLE hOrange;
 LPBYTE hm;
-LPVOID pLastDice,pCurPlayer,pCurChapter,pMapNum,pLastDiceIndex,pGameStatus,pDiceCount;
+LPVOID pLastDice,pCurPlayer,pCurChapter,pMapNum,pLastDiceIndex,pGameStatus,pDiceCount,pDiceStatus;
 LPVOID ppMyPlayer;
 LPBYTE pMyPlayer;
-int lastDice[4];//1-6
+int lastDice[4];//1-6，也有可能是0-9或者更广的范围
 int myPlayer;//0开始
 int curPlayer;//0开始
 int curChapter;//1开始
@@ -182,6 +182,7 @@ int mapNum;//0或6为游戏外
 int lastDiceIndex;//0-5
 int gameStatus;
 int diceCount;
+int diceStatus;
 
 LPDIRECT3DTEXTURE9 texCharacters[6]{}, texDices[6]{};
 D3DXIMAGE_INFO imginfoCharacters[6]{}, imginfoDices[6]{};
@@ -332,6 +333,7 @@ BOOL Test100OJReadGameDataInit(HWND hwnd,LPDIRECT3DDEVICE9 pDevice)
 		pLastDiceIndex = reinterpret_cast<int*>(hm + 0x57ED50);
 		pGameStatus = reinterpret_cast<int*>(hm + 0x57EC68);
 		pDiceCount = reinterpret_cast<int*>(hm + 0x57ED08);
+		pDiceStatus = reinterpret_cast<int*>(hm + 0x57ED58);
 	}
 	g_pDevice->GetViewport(&viewport);
 	if (!g_pSprite)
@@ -421,13 +423,10 @@ float dice_avg[5]{};
 
 bool inGame = false;
 int lastPlayer = -1, lastChapter = -1;
-int lastDice1 = 0, lastDice2 = 0;
-bool rollingDice = false;
 int displayingCharacter = 0;
 std::wstring detailedData;
 RECT calcDrawTextRect{};
-int lastGameStatus = 0;
-int lastRecordDice[4]{};
+int lastDiceStatus = 0;
 RECT characterRect;
 
 BOOL IsMouseOnCharacter(const POINT *p)
@@ -457,6 +456,76 @@ POINT currentMousePoint{};
 bool mouseOnCharacter = false;
 int dragCharacter = 0;//0=No 1=OnStart 2=Dragging 3=End
 
+//记录骰子点数，同时更新文本与显示图片状态
+void AddDiceRecords(int _player,//0开始
+	int *_pDiceArray,//1-6或更广范围
+	int _diceCount)//要记录的骰子数量
+{
+	if ((UINT)_player > 4)
+		_player = 4;
+	for (int i = 0; i < _diceCount; i++)
+		dice_records[_player].push_back(_pDiceArray[i]);
+	float backupAvg = dice_avg[_player];
+	if (ini.calcAvgCount == 0)
+	{
+		dice_avg[_player] = 0.0f;
+		for (int i = 0; i < _diceCount; i++)
+			dice_avg[_player] += _pDiceArray[i];
+		dice_avg[_player] /= _diceCount;
+	}
+	else
+	{
+		dice_avg[_player] = 0;
+		int i = 0;
+		for (; i < min((int)dice_records[_player].size(), ini.calcAvgCount); i++)
+		{
+			dice_avg[_player] += dice_records[_player][dice_records[_player].size() - 1 - i];
+		}
+		dice_avg[_player] /= i;
+	}
+	if (_player == myPlayer)
+	{
+		if (dice_avg[_player] < backupAvg)
+			displayingCharacter = ini.avgDownImages[(UINT)rand() % ini.avgDownImages.size()];
+		else
+			displayingCharacter = ini.avgUpImages[(UINT)rand() % ini.avgUpImages.size()];
+	}
+	detailedData.clear();
+	TCHAR fbuf[16];
+	for (int i = 0; i < 4; i++)
+	{
+		if (i != 0)
+			detailedData += TEXT("\n");
+		detailedData += TEXT("P") + std::to_wstring(i + 1);
+		int pointCount[6]{};
+		for (size_t j = 0; j < dice_records[i].size(); j++)
+			pointCount[dice_records[i][j] - 1]++;
+		for (int j = 0; j < 6; j++)
+		{
+			TCHAR fmtbuf[8];
+			wsprintf(fmtbuf, TEXT(" %2d"), pointCount[j]);
+			detailedData += fmtbuf;
+		}
+		detailedData += TEXT("|");
+		for (int j = (int)dice_records[i].size() - ini.calcAvgCount; j < (int)dice_records[i].size(); j++)
+		{
+			if (detailedData.back() != '|')
+				detailedData.push_back(' ');
+			if (j < 0)
+				detailedData += TEXT("0");
+			else
+				detailedData += std::to_wstring(dice_records[i][j]);
+		}
+		swprintf_s(fbuf, TEXT(" %3.1f"), dice_avg[i]);
+		detailedData += fbuf;
+		if (i == 0)
+		{
+			CalcDrawTextWidth(detailedData.c_str());
+		}
+	}
+	calcDrawTextRect.bottom *= 4;
+}
+
 void UpdateData()
 {
 	if (!hOrange)
@@ -479,6 +548,8 @@ void UpdateData()
 
 	gameStatus = *(int*)pGameStatus;
 
+	diceStatus = *(int*)pDiceStatus;
+
 	if (inGame)
 	{
 		if (mapNum <= 6)
@@ -488,91 +559,12 @@ void UpdateData()
 		}
 		else
 		{
-			//状态变化
-			if (lastGameStatus != gameStatus)
-			{
-				lastGameStatus = gameStatus;
-				ZeroMemory(lastRecordDice, diceCount * sizeof(lastRecordDice[0]));
-			}
 			//游戏中
-			if (lastDice2 != lastDice1 && lastDice1 != lastDiceIndex&&lastRecordDice[0]==0)
-			{
-				rollingDice = true;
-			}
-			else if (lastDice2 == lastDice1 && lastDice1 == lastDiceIndex)
-			{
-				if (rollingDice == true)
-				{
-					rollingDice = false;
-					//记录骰子
-					if ((UINT)curPlayer > 4)
-						curPlayer = 4;
-					memcpy(lastRecordDice, lastDice, diceCount * sizeof(lastRecordDice[0]));
-					for (int i = 0; i < diceCount; i++)
-						dice_records[curPlayer].push_back(lastDice[i]);
-					float backupAvg = dice_avg[curPlayer];
-					if (ini.calcAvgCount == 0)
-					{
-						dice_avg[curPlayer] = 0.0f;
-						for (int i = 0; i < diceCount; i++)
-							dice_avg[curPlayer] += lastDice[i];
-						dice_avg[curPlayer] /= diceCount;
-					}
-					else
-					{
-						dice_avg[curPlayer] = 0;
-						int i = 0;
-						for (; i < min((int)dice_records[curPlayer].size(), ini.calcAvgCount); i++)
-						{
-							dice_avg[curPlayer] += dice_records[curPlayer][dice_records[curPlayer].size() - 1 - i];
-						}
-						dice_avg[curPlayer] /= i;
-					}
-					if (curPlayer == myPlayer)
-					{
-						if (dice_avg[curPlayer] < backupAvg)
-							displayingCharacter = ini.avgDownImages[(UINT)rand() % ini.avgDownImages.size()];
-						else
-							displayingCharacter = ini.avgUpImages[(UINT)rand() % ini.avgUpImages.size()];
-					}
-					detailedData.clear();
-					TCHAR fbuf[16];
-					for (int i = 0; i < 4; i++)
-					{
-						if (i != 0)
-							detailedData += TEXT("\n");
-						detailedData += TEXT("P") + std::to_wstring(i + 1);
-						int pointCount[6]{};
-						for (size_t j = 0; j < dice_records[i].size(); j++)
-							pointCount[dice_records[i][j] - 1]++;
-						for (int j = 0; j < 6; j++)
-						{
-							TCHAR fmtbuf[8];
-							wsprintf(fmtbuf, TEXT(" %2d"), pointCount[j]);
-							detailedData += fmtbuf;
-						}
-						detailedData+=TEXT("|");
-						for (int j = (int)dice_records[i].size() - ini.calcAvgCount; j < (int)dice_records[i].size(); j++)
-						{
-							if (detailedData.back() != '|')
-								detailedData.push_back(' ');
-							if (j < 0)
-								detailedData += TEXT("0");
-							else
-								detailedData += std::to_wstring(dice_records[i][j]);
-						}
-						swprintf_s(fbuf, TEXT(" %3.1f"), dice_avg[i]);
-						detailedData += fbuf;
-						if (i == 0)
-						{
-							CalcDrawTextWidth(detailedData.c_str());
-						}
-					}
-					calcDrawTextRect.bottom *= 4;
-				}
-			}
-			lastDice2 = lastDice1;
-			lastDice1 = lastDiceIndex;
+			if (lastDiceStatus == 1 && diceStatus == 2)
+				AddDiceRecords(curPlayer, lastDice, diceCount);
+			displayingCharacter = diceStatus;
+			//状态变化
+			lastDiceStatus = diceStatus;
 			lastPlayer = curPlayer;
 		}
 	}
