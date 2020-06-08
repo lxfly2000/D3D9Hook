@@ -566,7 +566,6 @@ void UpdateData()
 			//游戏中
 			if (lastDiceStatus == 1 && diceStatus == 2)
 				AddDiceRecords(curPlayer, lastDice, diceCount);
-			displayingCharacter = diceStatus;
 			//状态变化
 			lastDiceStatus = diceStatus;
 			lastPlayer = curPlayer;
