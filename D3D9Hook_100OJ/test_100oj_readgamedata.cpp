@@ -171,7 +171,7 @@ LPDIRECT3DDEVICE9 g_pDevice;
 DWORD pidOrange;
 HANDLE hOrange;
 LPBYTE hm;
-LPVOID pLastDice,pCurPlayer,pCurChapter,pMapNum,pLastDiceIndex,pGameStatus,pDiceCount,pDiceStatus;
+LPVOID pLastDice,pCurPlayer,pCurChapter,pMapNum,pLastDiceIndex,pGameStatus,pDiceCount,pDiceStatus,pIsInBattle;
 LPVOID ppMyPlayer;
 LPBYTE pMyPlayer;
 int lastDice[4];//1-6，也有可能是0-9或者更广的范围
@@ -183,6 +183,7 @@ int lastDiceIndex;//0-5
 int gameStatus;
 int diceCount;
 int diceStatus;
+int isInBattle;//1=处于战斗状态
 
 LPDIRECT3DTEXTURE9 texCharacters[6]{}, texDices[6]{};
 D3DXIMAGE_INFO imginfoCharacters[6]{}, imginfoDices[6]{};
@@ -334,6 +335,7 @@ BOOL Test100OJReadGameDataInit(HWND hwnd,LPDIRECT3DDEVICE9 pDevice)
 		pGameStatus = reinterpret_cast<int*>(hm + 0x57EC68);
 		pDiceCount = reinterpret_cast<int*>(hm + 0x57ED08);
 		pDiceStatus = reinterpret_cast<int*>(hm + 0x57ED58);
+		pIsInBattle = reinterpret_cast<int*>(hm + 0x57EEE8);
 	}
 	g_pDevice->GetViewport(&viewport);
 	if (!g_pSprite)
@@ -549,6 +551,8 @@ void UpdateData()
 	gameStatus = *(int*)pGameStatus;
 
 	diceStatus = *(int*)pDiceStatus;
+
+	isInBattle = *(int*)pIsInBattle;
 
 	if (inGame)
 	{
