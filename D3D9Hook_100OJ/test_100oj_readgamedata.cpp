@@ -27,7 +27,7 @@ FLOAT GetPrivateProfileFloatW(_In_ LPCWSTR lpAppName, _In_ LPCWSTR lpKeyName, _I
 {
 	WCHAR buf[32]{};
 	GetPrivateProfileStringW(lpAppName, lpKeyName, L"", buf, ARRAYSIZE(buf) - 1, lpFileName);
-	return lstrlenW(buf) == 0 ? nDefault : _wtof(buf);
+	return lstrlenW(buf) == 0 ? nDefault : (float)_wtof(buf);
 }
 
 struct Ini100OJ
@@ -171,16 +171,17 @@ LPDIRECT3DDEVICE9 g_pDevice;
 DWORD pidOrange;
 HANDLE hOrange;
 LPBYTE hm;
-LPVOID pLastDice,pCurPlayer,pCurChapter,pMapNum,pLastDiceIndex,pGameStatus;
+LPVOID pLastDice,pCurPlayer,pCurChapter,pMapNum,pLastDiceIndex,pGameStatus,pDiceCount;
 LPVOID ppMyPlayer;
 LPBYTE pMyPlayer;
-int lastDice;//1-6
+int lastDice[4];//1-6
 int myPlayer;//0开始
 int curPlayer;//0开始
 int curChapter;//1开始
 int mapNum;//0或6为游戏外
 int lastDiceIndex;//0-5
 int gameStatus;
+int diceCount;
 
 LPDIRECT3DTEXTURE9 texCharacters[6]{}, texDices[6]{};
 D3DXIMAGE_INFO imginfoCharacters[6]{}, imginfoDices[6]{};
@@ -330,6 +331,7 @@ BOOL Test100OJReadGameDataInit(HWND hwnd,LPDIRECT3DDEVICE9 pDevice)
 		pMapNum = reinterpret_cast<int*>(hm + 0x550E60);
 		pLastDiceIndex = reinterpret_cast<int*>(hm + 0x57ED50);
 		pGameStatus = reinterpret_cast<int*>(hm + 0x57EC68);
+		pDiceCount = reinterpret_cast<int*>(hm + 0x57ED08);
 	}
 	g_pDevice->GetViewport(&viewport);
 	if (!g_pSprite)
@@ -425,7 +427,7 @@ int displayingCharacter = 0;
 std::wstring detailedData;
 RECT calcDrawTextRect{};
 int lastGameStatus = 0;
-int lastRecordDice = 0;
+int lastRecordDice[4]{};
 RECT characterRect;
 
 BOOL IsMouseOnCharacter(const POINT *p)
@@ -459,8 +461,10 @@ void UpdateData()
 {
 	if (!hOrange)
 		return;
-	//TODO:已查到这是一个数组，但不知如何判断数组长度，且该数值不能表示战斗中的骰子点数，需要另外查找
-	lastDice = *(int*)pLastDice;// ReadProcessMemory(hOrange, pLastDice, &lastDice, sizeof(lastDice), NULL);
+	diceCount = *(int*)pDiceCount;
+
+	for (size_t i = 0; i < min(ARRAYSIZE(lastDice), diceCount); i++)
+		lastDice[i] = ((int*)pLastDice)[i];// ReadProcessMemory(hOrange, pLastDice, &lastDice, sizeof(lastDice), NULL);
 
 	lastDiceIndex = *(int*)pLastDiceIndex;// ReadProcessMemory(hOrange, pLastDiceIndex, &lastDiceIndex, sizeof(lastDiceIndex), NULL);
 
@@ -488,10 +492,10 @@ void UpdateData()
 			if (lastGameStatus != gameStatus)
 			{
 				lastGameStatus = gameStatus;
-				lastRecordDice = 0;
+				ZeroMemory(lastRecordDice, diceCount * sizeof(lastRecordDice[0]));
 			}
 			//游戏中
-			if (lastDice2 != lastDice1 && lastDice1 != lastDiceIndex&&lastRecordDice==0)
+			if (lastDice2 != lastDice1 && lastDice1 != lastDiceIndex&&lastRecordDice[0]==0)
 			{
 				rollingDice = true;
 			}
@@ -499,15 +503,21 @@ void UpdateData()
 			{
 				if (rollingDice == true)
 				{
-					rollingDice = false;//BUG:有时一次投骰会记录多次
+					rollingDice = false;
 					//记录骰子
 					if ((UINT)curPlayer > 4)
 						curPlayer = 4;
-					lastRecordDice = lastDice;
-					dice_records[curPlayer].push_back(lastDice);
+					memcpy(lastRecordDice, lastDice, diceCount * sizeof(lastRecordDice[0]));
+					for (int i = 0; i < diceCount; i++)
+						dice_records[curPlayer].push_back(lastDice[i]);
 					float backupAvg = dice_avg[curPlayer];
 					if (ini.calcAvgCount == 0)
-						dice_avg[curPlayer] = lastDice;
+					{
+						dice_avg[curPlayer] = 0.0f;
+						for (int i = 0; i < diceCount; i++)
+							dice_avg[curPlayer] += lastDice[i];
+						dice_avg[curPlayer] /= diceCount;
+					}
 					else
 					{
 						dice_avg[curPlayer] = 0;
@@ -533,7 +543,7 @@ void UpdateData()
 							detailedData += TEXT("\n");
 						detailedData += TEXT("P") + std::to_wstring(i + 1);
 						int pointCount[6]{};
-						for (int j = 0; j < dice_records[i].size(); j++)
+						for (size_t j = 0; j < dice_records[i].size(); j++)
 							pointCount[dice_records[i][j] - 1]++;
 						for (int j = 0; j < 6; j++)
 						{
