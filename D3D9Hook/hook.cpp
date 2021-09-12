@@ -14,6 +14,51 @@ DWORD GetDLLPath(LPTSTR path, DWORD max_length)
 	return GetModuleFileName(hDllModule, path, max_length);
 }
 
+static int SpeedGear_frameCounter = 0;
+#include <d3dkmthk.h>
+D3DKMT_WAITFORVERTICALBLANKEVENT getVBlankHandle() {
+	//https://docs.microsoft.com/en-us/windows/desktop/gdi/getting-information-on-a-display-monitor
+	DISPLAY_DEVICE dd;
+	dd.cb = sizeof(DISPLAY_DEVICE);
+
+	DWORD deviceNum = 0;
+	while (EnumDisplayDevices(NULL, deviceNum, &dd, 0)) {
+		if (dd.StateFlags & DISPLAY_DEVICE_PRIMARY_DEVICE)
+			break;
+		/*
+		DISPLAY_DEVICE newdd = {0};
+		newdd.cb = sizeof(DISPLAY_DEVICE);
+		DWORD monitorNum = 0;
+		while (EnumDisplayDevices(dd.DeviceName, monitorNum, &newdd, 0)) {
+			DumpDevice(newdd, 4);
+			monitorNum++;
+		}
+		*/
+		deviceNum++;
+	}
+
+	HDC hdc = CreateDC(NULL, dd.DeviceName, NULL, NULL);
+
+	D3DKMT_OPENADAPTERFROMHDC OpenAdapterData;
+
+	OpenAdapterData.hDc = hdc;
+	if (0 == D3DKMTOpenAdapterFromHdc(&OpenAdapterData)) {
+		DeleteDC(hdc);
+	}
+	else {
+		DeleteDC(hdc);
+	}
+	D3DKMT_WAITFORVERTICALBLANKEVENT we;
+	we.hAdapter = OpenAdapterData.hAdapter;
+	we.hDevice = 0; //optional. maybe OpenDeviceHandle will give it to us, https://docs.microsoft.com/en-us/windows/desktop/api/dxva2api/nf-dxva2api-idirect3ddevicemanager9-opendevicehandle
+	we.VidPnSourceId = OpenAdapterData.VidPnSourceId;
+
+	return we;
+}
+
+D3DKMT_WAITFORVERTICALBLANKEVENT wv;
+bool wvget = true;
+
 HRESULT hrLastPresent = S_OK;
 
 //Present是STDCALL调用方式，只需把THIS指针放在第一项就可按非成员函数调用
@@ -21,7 +66,24 @@ HRESULT __stdcall HookedIDirect3DDevice9_Present(LPDIRECT3DDEVICE9 pDevice, LPCR
 {
 	CustomPresent(pDevice,hrLastPresent);
 	//此时函数被拦截，只能通过指针调用，否则要先把HOOK关闭，调用p->Present，再开启HOOK
-	hrLastPresent = pfOriginalPresent(pDevice, pSrc, pDest, hwnd, pRgn);
+	//hrLastPresent = pfOriginalPresent(pDevice, pSrc, pDest, hwnd, pRgn);
+	if (SpeedGear::GetCurrentSpeed() >= 1.0f)
+	{
+		if (SpeedGear_frameCounter == 0)
+			hrLastPresent = pfOriginalPresent(pDevice, pSrc, pDest, hwnd, pRgn);
+		SpeedGear_frameCounter = (SpeedGear_frameCounter + 1) % static_cast<int>(SpeedGear::GetCurrentSpeed());
+	}
+	else
+	{
+		hrLastPresent = pfOriginalPresent(pDevice, pSrc, pDest, hwnd, pRgn);
+		if (wvget)
+		{
+			wv = getVBlankHandle();
+			wvget = false;
+		}
+		for (int i = 0; i < (int)(1.0f / SpeedGear::GetCurrentSpeed()); i++)
+			D3DKMTWaitForVerticalBlankEvent(&wv);
+	}
 	return hrLastPresent;
 }
 
@@ -87,6 +149,15 @@ extern "C" __declspec(dllexport) BOOL StopHook()
 	return TRUE;
 }
 
+extern "C" __declspec(dllexport) BOOL SpeedGear_StartHook()
+{
+	return SpeedGear::InitCustomTime();
+}
+
+extern "C" __declspec(dllexport) BOOL SpeedGear_StopHook()
+{
+	return SpeedGear::UninitCustomTime();
+}
 DWORD WINAPI TInitHook(LPVOID param)
 {
 	return StartHook();
@@ -99,10 +170,12 @@ BOOL WINAPI DllMain(HINSTANCE hInstDll, DWORD fdwReason, LPVOID lpvReserved)
 	{
 	case DLL_PROCESS_ATTACH:
 		DisableThreadLibraryCalls(hInstDll);
+		SpeedGear_StartHook();//消息钩子不能单独开线程使用
 		CreateThread(NULL, 0, TInitHook, NULL, 0, NULL);
 		break;
 	case DLL_PROCESS_DETACH:
 		StopHook();
+		SpeedGear_StopHook();
 		break;
 	case DLL_THREAD_ATTACH:break;
 	case DLL_THREAD_DETACH:break;
